@@ -1,4 +1,4 @@
-name: Build flashable kernel (MIUI/HyperOS venus)
+name: Build flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -18,8 +18,8 @@ jobs:
     
     - name: Setup Build Environment
       run: |
-        sudo apt-get -y update
-        sudo apt-get install git-core gnupg flex bison build-essential zip curl zlib1g-dev gcc-multilib g++-multilib libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip fontconfig p7zip-full python3 cpio
+        sudo apt-get update
+        sudo apt install -y libelf-dev lld llvm gcc binutils-arm-linux-gnueabi binutils-aarch64-linux-gnu curl wget vim git ccache automake flex lzop bison gperf build-essential zip zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler kmod python3 python3-pip
 
     - name: Setup Nathan Slim Clang
       run: |
@@ -36,13 +36,13 @@ jobs:
         git submodule init
         git submodule update --checkout
 
-    - name: Build Kernel for venus
+    - name: Build Kernel for renoir
       run: |
         cd kernel-srcroot
         PATH=${{ env.TARGET_CLANG_PATH }}/:$PATH
         clang --version
-        
-        bash build.sh defconfig lisa
+
+        bash build.sh defconfig liaa
         bash build.sh all lisa
 
         echo "TARGET_KERNEL_FLASHABLE_NAME=$(ls ../out/anykernel/ | grep Acetaminophen)" >> $GITHUB_ENV
