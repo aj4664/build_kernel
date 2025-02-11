@@ -12,8 +12,8 @@ jobs:
       uses: actions/checkout@v3
       with:
         github-server-url: 'https://github.com'
-        repository: aj4664/android_kernel_xiaomi_sm8350-miui
-        ref: hyper-14
+        repository: aj4664/NX659J
+        ref: master
         path: kernel-srcroot
     
     - name: Setup Build Environment
@@ -42,13 +42,13 @@ jobs:
         PATH=${{ env.TARGET_CLANG_PATH }}/:$PATH
         clang --version
 
-        bash build.sh defconfig lisa
-        bash build.sh all lisa
+        bash BuildClang11RM5.sh
+      
 
-        echo "TARGET_KERNEL_FLASHABLE_NAME=$(ls ../out/anykernel/ | grep Acetaminophen)" >> $GITHUB_ENV
+        echo "TARGET_KERNEL_FLASHABLE_NAME=$(ls ../out/arch/arm64/boot/ | grep Acetaminophen)" >> $GITHUB_ENV
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ env.TARGET_KERNEL_FLASHABLE_NAME }}
-        path: out/anykernel/Acetaminophen-kernel-*
+        path: out/arch/arm64/boot/
