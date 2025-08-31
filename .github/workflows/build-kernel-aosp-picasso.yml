@@ -1,4 +1,4 @@
-name: Bfgfgggggggfuild flashable kernel (MIUI/HyperOS renoir)
+name: Build flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
         cd ./toolchain
         curl -o llvm-18.tar.gz https://mirrors.edge.kernel.org/pub/tools/llvm/files/llvm-18.1.8-x86_64.tar.gz
         tar -xvf llvm-18.tar.gz
-        TARGET_CLANG_PATH="$(pwd)/$(find ./ -name "bin")"
+        TARGET_CLANG_PATH="$(pwd)/$(find ./ -name "bin" -type d)"
         echo "TARGET_CLANG_PATH=${TARGET_CLANG_PATH}" >> $GITHUB_ENV
 
     - name: Build Kernel for renoir
@@ -43,34 +43,42 @@ jobs:
         # 查找生成的内核文件并清理路径
         KERNEL_FILE=$(find . -name "*.img" -o -name "*.zip" | head -n 1)
         if [ -n "$KERNEL_FILE" ]; then
-          # 移除可能的 ./ 前缀
-          CLEAN_PATH=$(dirname "$KERNEL_FILE" | sed 's|^\./||')
+          # 移除可能的 ./ 前缀和相对路径
+          CLEAN_PATH=$(dirname "$KERNEL_FILE" | sed 's|^\./||' | sed 's|^\.\./||')
           CLEAN_NAME=$(basename "$KERNEL_FILE")
           echo "TARGET_KERNEL_FLASHABLE_NAME=$CLEAN_NAME" >> $GITHUB_ENV
           echo "TARGET_KERNEL_FLASHABLE_PATH=$CLEAN_PATH" >> $GITHUB_ENV
         else
           echo "未找到内核文件，检查构建输出"
           ls -la
+          exit 1
         fi
 
     - name: Prepare build artifacts
       run: |
         cd kernel-srcroot
         
+        # 清理路径中的相对符号
+        CLEAN_BOOT_PATH=$(echo "out/arch/arm64/boot" | sed 's|^\./||' | sed 's|^\.\./||')
+        CLEAN_CONFIG_PATH=$(echo "out/.config" | sed 's|^\./||' | sed 's|^\.\./||')
+        
         # 压缩 out/arch/arm64/boot 文件夹
-        if [ -d "out/arch/arm64/boot" ]; then
-          tar -czf arm64-boot-files.tar.gz -C out/arch/arm64/boot .
+        if [ -d "$CLEAN_BOOT_PATH" ]; then
+          tar -czf arm64-boot-files.tar.gz -C "$CLEAN_BOOT_PATH" .
           echo "ARM64_BOOT_TAR=arm64-boot-files.tar.gz" >> $GITHUB_ENV
         else
-          echo "out/arch/arm64/boot 目录不存在"
+          echo "$CLEAN_BOOT_PATH 目录不存在"
+          ls -la out/ || echo "out目录不存在"
+          ls -la out/arch/ || echo "out/arch目录不存在"
         fi
         
         # 复制 .config 文件
-        if [ -f "out/.config" ]; then
-          cp out/.config kernel.config
+        if [ -f "$CLEAN_CONFIG_PATH" ]; then
+          cp "$CLEAN_CONFIG_PATH" kernel.config
           echo "KERNEL_CONFIG=kernel.config" >> $GITHUB_ENV
         else
-          echo "out/.config 文件不存在"
+          echo "$CLEAN_CONFIG_PATH 文件不存在"
+          ls -la out/ || echo "out目录不存在"
         fi
 
     - name: Upload kernel artifact
@@ -78,7 +86,7 @@ jobs:
       with:
         name: kernel-flashable-${{ github.run_id }}
         path: kernel-srcroot/${{ env.TARGET_KERNEL_FLASHABLE_PATH }}/${{ env.TARGET_KERNEL_FLASHABLE_NAME }}
-        if-no-files-found: warn
+        if-no-files-found: error
 
     - name: Upload config file
       uses: actions/upload-artifact@v4
