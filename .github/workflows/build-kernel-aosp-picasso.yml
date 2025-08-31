@@ -1,4 +1,4 @@
-name: x
+name: Build flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
         KERNEL_FILE=$(find . -name "*.img" -o -name "*.zip" | head -n 1)
         if [ -n "$KERNEL_FILE" ]; then
           echo "TARGET_KERNEL_FLASHABLE_NAME=$(basename $KERNEL_FILE)" >> $GITHUB_ENV
-          echo "TARGET_KERNEL_FLASHABLE_PATH=$(dirname $KERNEL_FILE)" >> $GITHUB_ENV
+          echo "TARGET_KERNEL_FLASHABLE_PATH=$(realpath --relative-to=. $(dirname $KERNEL_FILE))" >> $GITHUB_ENV
         else
           echo "未找到内核文件，检查构建输出"
           ls -la
@@ -56,7 +56,7 @@ jobs:
         
         # 压缩 out/arch/arm64/boot 文件夹
         if [ -d "out/arch/arm64/boot" ]; then
-          tar -czf arm64-boot-files.tar.gz out/arch/arm64/boot/
+          tar -czf arm64-boot-files.tar.gz -C out/arch/arm64/boot .
           echo "ARM64_BOOT_TAR=arm64-boot-files.tar.gz" >> $GITHUB_ENV
         else
           echo "out/arch/arm64/boot 目录不存在"
