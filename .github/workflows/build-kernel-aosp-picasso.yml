@@ -1,4 +1,4 @@
-name: Build flashable kernel (MIUI/HyperOS renoir)
+name: Bfgfgggggggfuild flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -40,11 +40,14 @@ jobs:
         chmod +x buildall.sh
         ./buildall.sh
         
-        # 查找生成的内核文件
+        # 查找生成的内核文件并清理路径
         KERNEL_FILE=$(find . -name "*.img" -o -name "*.zip" | head -n 1)
         if [ -n "$KERNEL_FILE" ]; then
-          echo "TARGET_KERNEL_FLASHABLE_NAME=$(basename $KERNEL_FILE)" >> $GITHUB_ENV
-          echo "TARGET_KERNEL_FLASHABLE_PATH=$(realpath --relative-to=. $(dirname $KERNEL_FILE))" >> $GITHUB_ENV
+          # 移除可能的 ./ 前缀
+          CLEAN_PATH=$(dirname "$KERNEL_FILE" | sed 's|^\./||')
+          CLEAN_NAME=$(basename "$KERNEL_FILE")
+          echo "TARGET_KERNEL_FLASHABLE_NAME=$CLEAN_NAME" >> $GITHUB_ENV
+          echo "TARGET_KERNEL_FLASHABLE_PATH=$CLEAN_PATH" >> $GITHUB_ENV
         else
           echo "未找到内核文件，检查构建输出"
           ls -la
@@ -60,8 +63,6 @@ jobs:
           echo "ARM64_BOOT_TAR=arm64-boot-files.tar.gz" >> $GITHUB_ENV
         else
           echo "out/arch/arm64/boot 目录不存在"
-          ls -la out/ || echo "out 目录不存在"
-          ls -la out/arch/ || echo "out/arch 目录不存在"
         fi
         
         # 复制 .config 文件
@@ -70,7 +71,6 @@ jobs:
           echo "KERNEL_CONFIG=kernel.config" >> $GITHUB_ENV
         else
           echo "out/.config 文件不存在"
-          find . -name ".config" | head -5
         fi
 
     - name: Upload kernel artifact
