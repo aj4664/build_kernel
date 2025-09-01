@@ -1,4 +1,4 @@
-name: Build flashable kernel (MIUI/HyperOS renoir)
+name: B1111111uild flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -13,42 +13,113 @@ jobs:
       with:
         github-server-url: 'https://github.com'
         repository: aj4664/kernel_xiaomi_sm8250
-        ref: backport-5.10-bpf
+        ref: android16
         path: kernel-srcroot
     
     - name: Setup Build Environment
       run: |
         sudo apt-get update
         sudo apt install -y libelf-dev lld llvm gcc binutils-arm-linux-gnueabi binutils-aarch64-linux-gnu curl wget vim git ccache automake flex lzop bison gperf build-essential zip zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 x11proto-core-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler kmod python3 python3-pip
-
     - name: Setup Nathan Slim Clang
       run: |
         mkdir ./toolchain
         cd ./toolchain
         curl -o llvm-18.tar.gz https://mirrors.edge.kernel.org/pub/tools/llvm/files/llvm-18.1.8-x86_64.tar.gz
         tar -xvf llvm-18.tar.gz
-        TARGET_CLANG_PATH="$(pwd)/$(find ./ -name "bin")"
-        echo "TARGET_CLANG_PATH=${TARGET_CLANG_PATH}" > $GITHUB_ENV
-
-    - name: Setup Kernel SU
-      run: |
-        cd kernel-srcroot
-        git submodule init
-        git submodule update --checkout
-
+        TARGET_CLANG_PATH="$(pwd)/$(find ./ -name "bin" -type d)"
+        echo "TARGET_CLANG_PATH=${TARGET_CLANG_PATH}" >> $GITHUB_ENV
     - name: Build Kernel for renoir
       run: |
         cd kernel-srcroot
         PATH=${{ env.TARGET_CLANG_PATH }}/:$PATH
         clang --version
-
-        bash buildall.sh
-      
-
-        echo "TARGET_KERNEL_FLASHABLE_NAME=$(ls ../out/arch/arm64/boot/ | grep Acetaminophen)" >> $GITHUB_ENV
-
-    - name: Upload artifact
+        # 执行构建脚本
+        chmod +x buildall.sh
+        ./buildall.sh
+    - name: Prepare build artifacts
+      run: |
+        cd kernel-srcroot
+        
+        # 创建dist目录存放所有构建产物
+        mkdir -p dist
+        
+        # 压缩 out/arch/arm64/boot 文件夹
+        if [ -d "out/arch/arm64/boot" ]; then
+          tar -czf dist/arm64-boot-files.tar.gz -C out/arch/arm64/boot .
+          echo "已创建 arm64-boot-files.tar.gz"
+        else
+          echo "out/arch/arm64/boot 目录不存在"
+          ls -la out/ || echo "out目录不存在"
+        fi
+        
+        # 复制 .config 文件
+        if [ -f "out/.config" ]; then
+          cp out/.config dist/kernel.config
+          echo "已复制 kernel.config"
+        else
+          echo "out/.config 文件不存在"
+          ls -la out/ || echo "out目录不存在"
+        fi
+        
+        # 处理 anykernel 目录中的所有内核文件
+        if [ -d "anykernel" ]; then
+          echo "找到 anykernel 目录，处理其中的文件..."
+          
+          # 复制 anykernel 目录中的所有文件到 dist/anykernel
+          mkdir -p dist/anykernel
+          cp -r anykernel/* dist/anykernel/
+          echo "已复制 anykernel 目录中的所有文件"
+          
+          # 创建 anykernel 目录的压缩包
+          cd dist
+          zip -r anykernel-files.zip anykernel/
+          echo "已创建 anykernel-files.zip"
+          
+          # 单独列出所有内核文件
+          KERNEL_FILES=$(find anykernel/ -name "*.zip" -o -name "*.img")
+          echo "KERNEL_FILES=$KERNEL_FILES" >> $GITHUB_ENV
+        else
+          echo "anykernel 目录不存在，查找其他位置的内核文件..."
+          # 查找其他位置的内核文件
+          KERNEL_FILES=$(find . -name "*.zip" -o -name "*.img" | grep -v "dist/" | head -10)
+          if [ -n "$KERNEL_FILES" ]; then
+            echo "KERNEL_FILES=$KERNEL_FILES" >> $GITHUB_ENV
+            # 复制找到的内核文件到 dist 目录
+            for file in $KERNEL_FILES; do
+              cp "$file" dist/
+              echo "已复制: $file"
+            done
+          else
+            echo "未找到任何内核文件"
+            exit 1
+          fi
+        fi
+    - name: Upload anykernel files
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ env.TARGET_KERNEL_FLASHABLE_NAME }}
-        path: out/arch/arm64/boot/
+        name: anykernel-files-${{ github.run_id }}
+        path: kernel-srcroot/dist/anykernel-files.zip
+        if-no-files-found: error
+
+    - name: Upload individual kernel files
+      uses: actions/upload-artifact@v4
+      with:
+        name: individual-kernel-files-${{ github.run_id }}
+        path: |
+          kernel-srcroot/dist/anykernel/*.zip
+          kernel-srcroot/dist/anykernel/*.img
+        if-no-files-found: warn
+
+    - name: Upload config file
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-config-${{ github.run_id }}
+        path: kernel-srcroot/dist/kernel.config
+        if-no-files-found: warn
+
+    - name: Upload arm64 boot files
+      uses: actions/upload-artifact@v4
+      with:
+        name: arm64-boot-files-${{ github.run_id }}
+        path: kernel-srcroot/dist/arm64-boot-files.tar.gz
+        if-no-files-found: warn
