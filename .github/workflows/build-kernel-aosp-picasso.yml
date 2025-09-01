@@ -1,4 +1,4 @@
-name: 11111Build flashable kernel (MIUI/HyperOS renoir)
+name: Build flashable kernel (MIUI/HyperOS renoir)
 
 on:
   workflow_dispatch:
@@ -39,21 +39,6 @@ jobs:
         # 执行构建脚本
         chmod +x buildall.sh
         ./buildall.sh
-        
-        # 查找生成的内核文件
-        KERNEL_FILE=$(find . -name "*.img" -o -name "*.zip" | head -n 1)
-        if [ -n "$KERNEL_FILE" ]; then
-          # 获取绝对路径（使用pwd而不是realpath，因为realpath可能不可用）
-          FULL_PATH="$(pwd)/$KERNEL_FILE"
-          # 清理路径中的任何相对路径符号
-          CLEAN_PATH=$(echo "$FULL_PATH" | sed 's|/\./|/|g' | sed 's|/\.$||' | sed 's|/[^/]*/\.\./|/|g' | sed 's|/[^/]*/\.\.$||')
-          echo "FULL_KERNEL_PATH=$CLEAN_PATH" >> $GITHUB_ENV
-          echo "KERNEL_FILENAME=$(basename "$KERNEL_FILE")" >> $GITHUB_ENV
-        else
-          echo "未找到内核文件，检查构建输出"
-          ls -la
-          exit 1
-        fi
 
     - name: Prepare build artifacts
       run: |
@@ -65,6 +50,7 @@ jobs:
         # 压缩 out/arch/arm64/boot 文件夹
         if [ -d "out/arch/arm64/boot" ]; then
           tar -czf dist/arm64-boot-files.tar.gz -C out/arch/arm64/boot .
+          echo "已创建 arm64-boot-files.tar.gz"
         else
           echo "out/arch/arm64/boot 目录不存在"
           ls -la out/ || echo "out目录不存在"
@@ -73,25 +59,61 @@ jobs:
         # 复制 .config 文件
         if [ -f "out/.config" ]; then
           cp out/.config dist/kernel.config
+          echo "已复制 kernel.config"
         else
           echo "out/.config 文件不存在"
           ls -la out/ || echo "out目录不存在"
         fi
         
-        # 复制内核文件到dist目录
-        if [ -f "${{ env.FULL_KERNEL_PATH }}" ]; then
-          cp "${{ env.FULL_KERNEL_PATH }}" "dist/${{ env.KERNEL_FILENAME }}"
+        # 处理 anykernel 目录中的所有内核文件
+        if [ -d "anykernel" ]; then
+          echo "找到 anykernel 目录，处理其中的文件..."
+          
+          # 复制 anykernel 目录中的所有文件到 dist/anykernel
+          mkdir -p dist/anykernel
+          cp -r anykernel/* dist/anykernel/
+          echo "已复制 anykernel 目录中的所有文件"
+          
+          # 创建 anykernel 目录的压缩包
+          cd dist
+          zip -r anykernel-files.zip anykernel/
+          echo "已创建 anykernel-files.zip"
+          
+          # 单独列出所有内核文件
+          KERNEL_FILES=$(find anykernel/ -name "*.zip" -o -name "*.img")
+          echo "KERNEL_FILES=$KERNEL_FILES" >> $GITHUB_ENV
         else
-          echo "内核文件不存在: ${{ env.FULL_KERNEL_PATH }}"
-          exit 1
+          echo "anykernel 目录不存在，查找其他位置的内核文件..."
+          # 查找其他位置的内核文件
+          KERNEL_FILES=$(find . -name "*.zip" -o -name "*.img" | grep -v "dist/" | head -10)
+          if [ -n "$KERNEL_FILES" ]; then
+            echo "KERNEL_FILES=$KERNEL_FILES" >> $GITHUB_ENV
+            # 复制找到的内核文件到 dist 目录
+            for file in $KERNEL_FILES; do
+              cp "$file" dist/
+              echo "已复制: $file"
+            done
+          else
+            echo "未找到任何内核文件"
+            exit 1
+          fi
         fi
 
-    - name: Upload kernel artifact
+    - name: Upload anykernel files
       uses: actions/upload-artifact@v4
       with:
-        name: kernel-flashable-${{ github.run_id }}
-        path: kernel-srcroot/dist/${{ env.KERNEL_FILENAME }}
+        name: anykernel-files-${{ github.run_id }}
+        path: kernel-srcroot/dist/anykernel-files.zip
         if-no-files-found: error
+
+    - name: Upload individual kernel files
+      uses: actions/upload-artifact@v4
+      with:
+        name: individual-kernel-files-${{ github.run_id }}
+        path: |
+          kernel-srcroot/dist/anykernel/*.zip
+          kernel-srcroot/dist/anykernel/*.img
+        if-no-files-found: warn
 
     - name: Upload config file
       uses: actions/upload-artifact@v4
