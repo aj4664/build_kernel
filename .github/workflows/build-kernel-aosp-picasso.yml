@@ -13,7 +13,7 @@ jobs:
       with:
         github-server-url: 'https://github.com'
         repository: aj4664/android16d
-        ref: a16d
+        ref: test
         path: kernel-srcroot
     
     - name: Setup Build Environment
