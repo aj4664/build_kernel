@@ -13,7 +13,7 @@ jobs:
       with:
         github-server-url: 'https://github.com'
         repository: aj4664/sm8250
-        ref: a14
+        ref: a14-test
         path: kernel-srcroot
     
     - name: Setup Build Environment
