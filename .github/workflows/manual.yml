@@ -13,7 +13,7 @@ jobs:
       with:
         github-server-url: 'https://github.com'
         repository: aj4664/sm8250
-        ref: android16-ebpf-s2
+        ref: a17
         path: kernel-srcroot
     
     - name: Setup Build Environment
